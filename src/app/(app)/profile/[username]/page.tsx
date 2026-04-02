@@ -11,10 +11,12 @@ import {
 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
+import { BadgePro } from "@/components/ui/BadgePro";
 import { FriendButton } from "@/components/ui/FriendButton";
 import { EventCard } from "@/components/ui/EventCard";
 import { createClient } from "@/lib/supabase/client";
 import { useFriendship } from "@/hooks/useFriendship";
+import { useSubscription } from "@/hooks/useSubscription";
 import type { Profile, Event } from "@/lib/supabase/types";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -27,6 +29,7 @@ export default function PublicProfilePage({
   const { username } = use(params);
   const router = useRouter();
   const supabase = createClient();
+  const { isPro } = useSubscription();
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
@@ -148,8 +151,9 @@ export default function PublicProfilePage({
         </div>
 
         {/* Name + bio */}
-        <h1 className="font-heading text-2xl font-bold text-white">
+        <h1 className="font-heading text-2xl font-bold text-white flex items-center gap-2">
           {profile.full_name ?? profile.username}
+          {isPro && <BadgePro size="sm" />}
         </h1>
         {profile.username && (
           <p className="text-white/50 text-sm mt-0.5">@{profile.username}</p>

@@ -4,8 +4,11 @@ import { useState, useEffect, useRef } from "react";
 import { Search, SlidersHorizontal, TrendingUp, Clock, MapPin, Sparkles } from "lucide-react";
 import { EventCard } from "@/components/ui/EventCard";
 import { EventCardSkeleton } from "@/components/ui/Skeleton";
+import { BannerUpgrade } from "@/components/ui/BannerUpgrade";
 import { useEvents } from "@/hooks/useEvents";
+import { useRecommendations } from "@/hooks/useRecommendations";
 import { useUserInterests } from "@/hooks/useUserInterests";
+import { useSubscription } from "@/hooks/useSubscription";
 import { createClient } from "@/lib/supabase/client";
 import type { Event } from "@/lib/supabase/types";
 import { clsx } from "clsx";
@@ -27,12 +30,14 @@ export default function FeedPage() {
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [usePersonalized, setUsePersonalized] = useState(true);
   const [limit, setLimit] = useState(20);
+  const { isPro } = useSubscription();
   const [userLat, setUserLat] = useState<number | undefined>(undefined);
   const [userLng, setUserLng] = useState<number | undefined>(undefined);
   const newEventsRef = useRef<Event[]>([]);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const { interests, loading: interestsLoading } = useUserInterests();
+  const { recommendations, loading: recsLoading, refresh } = useRecommendations();
 
   useEffect(() => {
     const supabase = createClient();
@@ -262,6 +267,65 @@ export default function FeedPage() {
             {interests.slice(0, 4).join(", ")}
             {interests.length > 4 ? ` +${interests.length - 4}` : ""}
           </span>
+        </div>
+      )}
+
+      {/* AI Picks section - Solo Pro */}
+      {!isPro && <BannerUpgrade />}
+
+      {isPro && !recsLoading && recommendations.length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Sparkles size={14} className="text-amber-400" />
+              <h3 className="font-heading font-semibold text-white text-sm">
+                AI Picks per te
+              </h3>
+            </div>
+            <button
+              onClick={refresh}
+              className="text-xs text-white/40 hover:text-white transition-colors"
+            >
+              Aggiorna
+            </button>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none no-scrollbar">
+            {recommendations.slice(0, 5).map((rec) => (
+              <a
+                key={rec.event_id}
+                href={`/event/${rec.event.slug}`}
+                className="flex-shrink-0 w-48 group"
+              >
+                <div className="relative rounded-xl overflow-hidden aspect-video mb-2">
+                  {rec.event.cover_image_url ? (
+                    <img
+                      src={rec.event.cover_image_url}
+                      alt={rec.event.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-white/10 flex items-center justify-center">
+                      <Sparkles size={24} className="text-white/30" />
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                  <div className="absolute bottom-2 left-2 right-2">
+                    <span className="text-[10px] font-medium text-amber-300">
+                      {Math.round(rec.score * 100)}% match
+                    </span>
+                  </div>
+                </div>
+                <p className="text-xs text-white/80 font-medium line-clamp-2 group-hover:text-white transition-colors">
+                  {rec.event.title}
+                </p>
+                {rec.reason && (
+                  <p className="text-[10px] text-white/40 line-clamp-1 mt-0.5">
+                    {rec.reason}
+                  </p>
+                )}
+              </a>
+            ))}
+          </div>
         </div>
       )}
 

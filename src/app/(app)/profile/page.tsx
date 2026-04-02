@@ -15,14 +15,17 @@ import {
 import Link from "next/link";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
+import { BadgePro } from "@/components/ui/BadgePro";
 import { EventCard } from "@/components/ui/EventCard";
 import { createClient } from "@/lib/supabase/client";
+import { useSubscription } from "@/hooks/useSubscription";
 import type { Profile, Event } from "@/lib/supabase/types";
 import toast from "react-hot-toast";
 
 export default function ProfilePage() {
   const router = useRouter();
   const supabase = createClient();
+  const { isPro } = useSubscription();
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([]);
@@ -168,7 +171,10 @@ export default function ProfilePage() {
         <div className="flex items-start gap-4">
           <Avatar src={profile.avatar_url} name={displayName} size="xl" />
           <div className="flex-1">
-            <h2 className="font-heading font-bold text-xl text-white">{displayName}</h2>
+            <h2 className="font-heading font-bold text-xl text-white flex items-center gap-2">
+              {displayName}
+              {isPro && <BadgePro size="sm" />}
+            </h2>
             {profile.username && (
               <p className="text-sm text-white/50 mt-0.5">@{profile.username}</p>
             )}

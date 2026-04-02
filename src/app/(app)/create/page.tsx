@@ -16,6 +16,8 @@ import {
 import { Button } from "@/components/ui/Button";
 import { CategoryBadge } from "@/components/ui/CategoryBadge";
 import { createClient } from "@/lib/supabase/client";
+import { useSubscription } from "@/hooks/useSubscription";
+import { useEventLimit } from "@/hooks/useEventLimit";
 import toast from "react-hot-toast";
 import { clsx } from "clsx";
 
@@ -59,6 +61,8 @@ async function geocodeAddress(
 
 export default function CreatePage() {
   const router = useRouter();
+  const { isPro } = useSubscription();
+  const { limit, remaining, canCreateEvent, loading: limitLoading } = useEventLimit();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -102,6 +106,13 @@ export default function CreatePage() {
 
     if (!user) {
       toast.error("Devi essere loggato per creare un evento");
+      setLoading(false);
+      return;
+    }
+
+    if (!isPro && !canCreateEvent) {
+      toast.error(`Hai raggiunto il limite di ${limit} eventi mensili. Passa a Pro per creare eventi illimitati!`);
+      router.push("/pricing");
       setLoading(false);
       return;
     }
@@ -180,6 +191,15 @@ export default function CreatePage() {
         <h1 className="font-heading text-2xl font-bold text-white">Crea Evento</h1>
         <p className="text-white/50 text-sm mt-1">Condividi qualcosa di speciale</p>
       </div>
+
+      {/* Limite Free */}
+      {!isPro && !limitLoading && (
+        <div className="mb-4 p-3 rounded-lg bg-surface border border-border">
+          <p className="text-sm text-white/70">
+            💡 Piano Free: <span className="text-white font-medium">{remaining}</span> eventi rimasti questo mese
+          </p>
+        </div>
+      )}
 
       {/* Step indicator */}
       <div className="flex items-center gap-2 mb-8">
