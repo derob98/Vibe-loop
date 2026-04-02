@@ -1,0 +1,611 @@
+"use client";
+
+import { useState, useMemo, useCallback, useRef } from "react";
+import Map, {
+  Marker,
+  Popup,
+  NavigationControl,
+  GeolocateControl,
+  type MapRef,
+} from "react-map-gl/maplibre";
+import Supercluster from "supercluster";
+import type { ClusterProperties } from "supercluster";
+import "maplibre-gl/dist/maplibre-gl.css";
+import { MapPin, List, X, SlidersHorizontal, Camera, Search } from "lucide-react";
+import { EventCard } from "@/components/ui/EventCard";
+import { CategoryBadge } from "@/components/ui/CategoryBadge";
+import { useEvents } from "@/hooks/useEvents";
+import { useEventPhotos, type EventPhotoPin } from "@/hooks/useEventPhotos";
+import type { Event } from "@/lib/supabase/types";
+import { clsx } from "clsx";
+import { CATEGORY_CONFIG } from "@/lib/utils";
+
+const CATEGORY_HEX: Record<string, string> = {
+  music: "#ec4899",
+  art: "#a855f7",
+  tech: "#06b6d4",
+  food: "#f97316",
+  sport: "#22c55e",
+  culture: "#eab308",
+  nightlife: "#7c3aed",
+  wellness: "#14b8a6",
+  business: "#3b82f6",
+  other: "#6b7280",
+  cinema: "#e11d48",
+  teatro: "#d97706",
+  festival: "#10b981",
+  natura: "#84cc16",
+  sociale: "#8b5cf6",
+};
+
+// CARTO Dark Matter — completamente gratuito, nessun token
+const MAP_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+
+const INITIAL_VIEW = { longitude: 12.49, latitude: 41.9, zoom: 12 };
+
+interface GeoFeature {
+  type: "Feature";
+  geometry: { type: "Point"; coordinates: [number, number] };
+  properties: Event;
+}
+
+export default function MapPage() {
+  const mapRef = useRef<MapRef>(null);
+  const [viewState, setViewState] = useState(INITIAL_VIEW);
+  const [cityLabel, setCityLabel] = useState("Roma, Italia");
+  const [bbox, setBbox] = useState<[number, number, number, number]>([
+    8.7, 45.2, 9.6, 45.7,
+  ]);
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [selectedPin, setSelectedPin] = useState<EventPhotoPin | null>(null);
+  const [showList, setShowList] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [showPhotos, setShowPhotos] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<string | undefined>();
+  const [dateRange, setDateRange] = useState<{ from: string; to: string } | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [searchResults, setSearchResults] = useState<Array<{ lat: string; lon: string; display_name: string }>>([]);
+
+  const { events, isLoading } = useEvents({ 
+    bbox, 
+    category: activeCategory, 
+    dateFrom: dateRange?.from, 
+    dateTo: dateRange?.to,
+    search: searchQuery || undefined
+  });
+
+  const handleSearchInput = useCallback(async (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim() || query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`,
+        { headers: { "User-Agent": "Vibe-Loop/1.0" } }
+      );
+      const data = await res.json();
+      setSearchResults(data || []);
+    } catch (e) {
+      setSearchResults([]);
+    }
+  }, []);
+
+  const handleSelectResult = useCallback((result: { lat: string; lon: string; display_name: string }) => {
+    const lat = parseFloat(result.lat);
+    const lng = parseFloat(result.lon);
+    setViewState((v) => ({ ...v, latitude: lat, longitude: lng, zoom: 13 }));
+    setCityLabel(result.display_name.split(",")[0]);
+    setSearchResults([]);
+    setSearchQuery("");
+    setIsSearching(false);
+  }, []);
+
+  const eventIds = useMemo(() => events.map((e) => e.id), [events]);
+  const { pins: photoPins } = useEventPhotos(eventIds, showPhotos);
+
+  // Prepara i GeoJSON features per supercluster
+  const features = useMemo<GeoFeature[]>(
+    () =>
+      events
+        .filter((e) => e.latitude != null && e.longitude != null)
+        .map((e) => ({
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: [e.longitude!, e.latitude!],
+          },
+          properties: e,
+        })),
+    [events]
+  );
+
+  // Supercluster
+  const supercluster = useMemo(() => {
+    const sc = new Supercluster<Event>({ radius: 50, maxZoom: 16 });
+    sc.load(features);
+    return sc;
+  }, [features]);
+
+  const clusters = useMemo(
+    () => supercluster.getClusters(bbox, Math.round(viewState.zoom)),
+    [supercluster, bbox, viewState.zoom]
+  );
+
+const CITY_CENTERS: Record<string, [number, number, number]> = {
+  "Roma, Italia": [12.49, 41.9, 12.5],
+  "Milano, Italia": [9.19, 45.46, 9.3],
+  "Napoli, Italia": [14.25, 40.85, 14.35],
+  "Torino, Italia": [7.69, 45.07, 7.75],
+  "Firenze, Italia": [11.25, 43.77, 11.3],
+  "Bologna, Italia": [11.34, 44.49, 11.4],
+};
+
+function detectCity(lat: number, lng: number): string {
+  for (const [label, [clng, clat, radius]] of Object.entries(CITY_CENTERS)) {
+    const dist = Math.sqrt(Math.pow(lng - clng, 2) + Math.pow(lat - clat, 2));
+    if (dist < radius) return label;
+  }
+  return "Italia";
+}
+
+  const handleMapMove = useCallback(() => {
+    if (!mapRef.current) return;
+    const b = mapRef.current.getMap().getBounds();
+    setBbox([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
+  }, []);
+
+  const handleMapMoveEnd = useCallback(() => {
+    if (!mapRef.current) return;
+    // Non aggiornare la città se c'è una ricerca attiva
+    if (searchQuery) return;
+    const center = mapRef.current.getMap().getCenter();
+    const detected = detectCity(center.lat, center.lng);
+    setCityLabel(detected);
+  }, [searchQuery]);
+
+  const categoryKeys = Object.keys(CATEGORY_CONFIG).slice(0, 6);
+
+  return (
+    <div className="relative h-screen overflow-hidden bg-[#0a0a0f]">
+      {/* Mappa */}
+      <Map
+        ref={mapRef}
+        {...viewState}
+        onMove={(e) => setViewState(e.viewState)}
+        onMoveEnd={(e) => {
+          handleMapMove();
+          handleMapMoveEnd();
+        }}
+        mapStyle={MAP_STYLE}
+        style={{ width: "100%", height: "100%" }}
+      >
+        <NavigationControl position="bottom-right" />
+        <GeolocateControl
+          position="bottom-right"
+          trackUserLocation
+          onGeolocate={(e) => {
+            setViewState((v) => ({
+              ...v,
+              longitude: e.coords.longitude,
+              latitude: e.coords.latitude,
+              zoom: 13,
+            }));
+          }}
+        />
+
+        {/* Cluster + marker */}
+        {clusters.map((cluster) => {
+          const [lng, lat] = cluster.geometry.coordinates;
+          const isCluster =
+            cluster.properties != null && "cluster" in cluster.properties;
+
+          if (isCluster) {
+            const clusterProps = cluster.properties as ClusterProperties;
+            const count = clusterProps.point_count;
+            const size = Math.min(20 + (count / features.length) * 30, 50);
+            return (
+              <Marker
+                key={`cluster-${cluster.id}`}
+                longitude={lng}
+                latitude={lat}
+                onClick={() => {
+                  const zoom = supercluster.getClusterExpansionZoom(
+                    cluster.id as number
+                  );
+                  mapRef.current?.flyTo({
+                    center: [lng, lat],
+                    zoom,
+                    duration: 500,
+                  });
+                }}
+              >
+                <div
+                  className="rounded-full bg-violet-600/90 border-2 border-violet-300 flex items-center justify-center font-bold text-white cursor-pointer hover:scale-110 transition-transform"
+                  style={{ width: size, height: size, fontSize: size * 0.38 }}
+                >
+                  {count}
+                </div>
+              </Marker>
+            );
+          }
+
+          const event = cluster.properties as unknown as Event;
+          const catHex =
+            CATEGORY_HEX[event.category ?? "other"] ?? "#7c3aed";
+          const catEmoji =
+            CATEGORY_CONFIG[event.category as keyof typeof CATEGORY_CONFIG]
+              ?.emoji ?? "📍";
+
+          return (
+            <Marker
+              key={event.id}
+              longitude={lng}
+              latitude={lat}
+              onClick={(e) => {
+                e.originalEvent.stopPropagation();
+                setSelectedEvent(event);
+              }}
+            >
+              <div
+                className="w-9 h-9 rounded-full border-2 border-white/80 flex items-center justify-center text-base cursor-pointer hover:scale-110 transition-transform shadow-lg"
+                style={{ backgroundColor: catHex }}
+                title={event.title}
+              >
+                {catEmoji}
+              </div>
+            </Marker>
+          );
+        })}
+
+        {/* Layer foto UGC */}
+        {showPhotos && photoPins.map((pin) => (
+          <Marker
+            key={pin.post.id}
+            longitude={pin.longitude}
+            latitude={pin.latitude}
+            onClick={(e) => {
+              e.originalEvent.stopPropagation();
+              setSelectedEvent(null);
+              setSelectedPin(pin);
+            }}
+          >
+            <div className="relative cursor-pointer hover:scale-110 transition-transform">
+              <div className="w-10 h-10 rounded-full border-2 border-white shadow-lg overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={pin.post.image_url}
+                  alt="foto evento"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              {pin.totalCount > 1 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-violet-600 rounded-full text-[9px] font-bold text-white flex items-center justify-center">
+                  {pin.totalCount}
+                </span>
+              )}
+            </div>
+          </Marker>
+        ))}
+
+        {/* Popup foto UGC */}
+        {selectedPin && (
+          <Popup
+            longitude={selectedPin.longitude}
+            latitude={selectedPin.latitude}
+            onClose={() => setSelectedPin(null)}
+            closeButton={false}
+            anchor="bottom"
+            offset={20}
+          >
+            <div
+              className="w-48 cursor-pointer"
+              onClick={() => (window.location.href = `/event/${selectedPin.eventSlug}`)}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={selectedPin.post.image_url}
+                alt="foto evento"
+                className="w-full aspect-square object-cover rounded-lg mb-1.5"
+              />
+              {selectedPin.post.caption && (
+                <p className="text-xs opacity-70 line-clamp-2">
+                  {selectedPin.post.caption}
+                </p>
+              )}
+              {selectedPin.totalCount > 1 && (
+                <p className="text-xs opacity-50 mt-0.5">
+                  +{selectedPin.totalCount - 1} altre foto
+                </p>
+              )}
+              <p className="text-xs text-violet-600 font-medium mt-1">
+                Vedi evento →
+              </p>
+            </div>
+          </Popup>
+        )}
+
+        {/* Popup dettaglio */}
+        {selectedEvent && selectedEvent.latitude && selectedEvent.longitude && (
+          <Popup
+            longitude={selectedEvent.longitude}
+            latitude={selectedEvent.latitude}
+            onClose={() => setSelectedEvent(null)}
+            closeButton={false}
+            anchor="bottom"
+            offset={20}
+          >
+            <div
+              className="min-w-[200px] max-w-[260px] cursor-pointer"
+              onClick={() =>
+                (window.location.href = `/event/${selectedEvent.slug}`)
+              }
+            >
+              <CategoryBadge category={selectedEvent.category} size="sm" />
+              <p className="font-semibold text-sm mt-1 leading-tight">
+                {selectedEvent.title}
+              </p>
+              {selectedEvent.venue_name && (
+                <p className="text-xs opacity-60 mt-0.5">
+                  {selectedEvent.venue_name}
+                </p>
+              )}
+              {selectedEvent.price_label && (
+                <p className="text-xs text-emerald-600 font-medium mt-1">
+                  {selectedEvent.price_label}
+                </p>
+              )}
+            </div>
+          </Popup>
+        )}
+      </Map>
+
+      {/* Top bar — ricerca città + filtri */}
+      <div className="absolute top-0 left-0 right-0 p-4 z-10 pointer-events-none">
+        <div className="max-w-lg mx-auto flex gap-2 pointer-events-auto">
+          <div className="flex-1 glass rounded-2xl px-4 py-3 flex items-center gap-3">
+            {isSearching ? (
+              <>
+                <Search size={16} className="text-violet-400 flex-shrink-0" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => handleSearchInput(e.target.value)}
+                  placeholder="Cerca eventi, locali, categorie..."
+                  className="flex-1 bg-transparent text-sm text-white placeholder:text-white/30 outline-none"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setSearchQuery("");
+                      setSearchResults([]);
+                      setIsSearching(false);
+                    }
+                  }}
+                />
+                {searchQuery && (
+                  <button 
+                    onClick={() => {
+                      setSearchQuery("");
+                      setSearchResults([]);
+                    }}
+                    className="text-white/40 hover:text-white"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <MapPin size={16} className="text-violet-400 flex-shrink-0" />
+                <button 
+                  className="text-sm text-white/80 hover:text-white text-left"
+                  onClick={() => setIsSearching(true)}
+                >
+                  {searchQuery || cityLabel}
+                </button>
+              </>
+            )}
+          </div>
+          
+          {/* Search Results Dropdown */}
+          {isSearching && searchResults.length > 0 && (
+            <div className="max-w-lg mx-auto mt-1 pointer-events-auto">
+              <div className="glass rounded-2xl overflow-hidden">
+                {searchResults.map((result, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleSelectResult(result)}
+                    className="w-full px-4 py-2 text-left text-sm text-white/80 hover:bg-white/10 hover:text-white transition-colors flex items-center gap-2"
+                  >
+                    <MapPin size={14} className="text-violet-400 flex-shrink-0" />
+                    <span className="truncate">{result.display_name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Search Results Dropdown */}
+        {isSearching && searchResults.length > 0 && (
+          <div className="max-w-lg mx-auto mt-1 pointer-events-auto">
+            <div className="glass rounded-2xl overflow-hidden">
+              {searchResults.map((result, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleSelectResult(result)}
+                  className="w-full px-4 py-2 text-left text-sm text-white/80 hover:bg-white/10 hover:text-white transition-colors flex items-center gap-2"
+                >
+                  <MapPin size={14} className="text-violet-400 flex-shrink-0" />
+                  <span className="truncate">{result.display_name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Right side buttons */}
+      <div className="absolute top-4 right-4 z-10 flex gap-2">
+        <button
+          onClick={() => setShowPhotos((v) => !v)}
+          className={clsx(
+            "glass rounded-2xl px-3 flex items-center gap-1.5 text-sm transition-all",
+            showPhotos
+              ? "text-pink-300 border border-pink-500/40"
+              : "text-white/70 hover:text-white"
+          )}
+          title="Foto degli utenti"
+        >
+          <Camera size={16} />
+        </button>
+        <button
+          onClick={() => setShowFilters((v) => !v)}
+          className={clsx(
+            "glass rounded-2xl px-3 flex items-center gap-1.5 text-sm transition-all",
+            showFilters
+              ? "text-violet-300 border border-violet-500/40"
+              : "text-white/70 hover:text-white"
+          )}
+        >
+          <SlidersHorizontal size={16} />
+        </button>
+      </div>
+
+      {/* Loading indicator (left side) */}
+      {isLoading || isGeocoding ? (
+        <span className="text-xs text-white/30 animate-pulse">•••</span>
+      ) : (
+        <span className="text-xs text-white/40">{events.length} eventi</span>
+      )}
+
+      {/* Filtri categoria */}
+      {showFilters && (
+        <div className="max-w-lg mx-auto mt-2 pointer-events-auto">
+            <div className="glass rounded-2xl p-3 flex flex-wrap gap-2">
+              {/* Date range */}
+              <div className="w-full flex gap-1 mb-2">
+                <button
+                  onClick={() => setDateRange(null)}
+                  className={clsx(
+                    "flex-1 px-2 py-1 rounded text-xs font-medium transition-all",
+                    !dateRange
+                      ? "bg-violet-600 text-white"
+                      : "text-white/60 hover:text-white"
+                  )}
+                >
+                  Futuri
+                </button>
+                <button
+                  onClick={() => {
+                    const today = new Date();
+                    const endOfWeek = new Date(today);
+                    endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
+                    setDateRange({
+                      from: today.toISOString().slice(0, 10),
+                      to: endOfWeek.toISOString().slice(0, 10),
+                    });
+                  }}
+                  className={clsx(
+                    "flex-1 px-2 py-1 rounded text-xs font-medium transition-all",
+                    dateRange?.from === new Date().toISOString().slice(0, 10)
+                      ? "bg-violet-600 text-white"
+                      : "text-white/60 hover:text-white"
+                  )}
+                >
+                  Weekend
+                </button>
+                <button
+                  onClick={() => {
+                    const today = new Date();
+                    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                    setDateRange({
+                      from: today.toISOString().slice(0, 10),
+                      to: endOfMonth.toISOString().slice(0, 10),
+                    });
+                  }}
+                  className={clsx(
+                    "flex-1 px-2 py-1 rounded text-xs font-medium transition-all",
+                    dateRange?.to?.endsWith("-01") && dateRange.from === new Date().toISOString().slice(0, 10)
+                      ? "bg-violet-600 text-white"
+                      : "text-white/60 hover:text-white"
+                  )}
+                >
+                  Mese
+                </button>
+              </div>
+
+              {/* Categorie */}
+              <button
+                onClick={() => setActiveCategory(undefined)}
+                className={clsx(
+                  "px-3 py-1 rounded-full text-xs font-medium transition-all",
+                  !activeCategory
+                    ? "bg-violet-600 text-white"
+                    : "text-white/60 hover:text-white"
+                )}
+              >
+                Tutti
+              </button>
+              {categoryKeys.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() =>
+                    setActiveCategory(activeCategory === cat ? undefined : cat)
+                  }
+                  className={clsx(
+                    "transition-all",
+                    activeCategory === cat
+                      ? "ring-2 ring-violet-500 rounded-full"
+                      : "opacity-60 hover:opacity-100"
+                  )}
+                >
+                  <CategoryBadge category={cat} size="sm" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Bottone lista */}
+      <button
+        onClick={() => setShowList((v) => !v)}
+        className={clsx(
+          "absolute bottom-24 lg:bottom-6 right-4 z-20 flex items-center gap-2 px-4 py-2.5 rounded-full glass border border-white/10 text-sm font-medium transition-all",
+          showList
+            ? "text-violet-300 border-violet-500/30"
+            : "text-white/70 hover:text-white"
+        )}
+      >
+        {showList ? <X size={16} /> : <List size={16} />}
+        {showList ? "Chiudi" : "Lista eventi"}
+      </button>
+
+      {/* Panel lista eventi */}
+      <div
+        className={clsx(
+          "absolute bottom-0 left-0 right-0 z-10 transition-transform duration-300 ease-out",
+          showList ? "translate-y-0" : "translate-y-full"
+        )}
+      >
+        <div className="glass-strong rounded-t-3xl border-t border-white/10 max-h-[60vh] overflow-y-auto">
+          <div className="sticky top-0 bg-[#0a0a0f]/80 backdrop-blur-md px-4 py-3 border-b border-white/8 flex items-center justify-between">
+            <h3 className="font-heading font-semibold text-white">
+              Eventi in zona
+            </h3>
+            <span className="text-xs text-white/40">{events.length} trovati</span>
+          </div>
+          <div className="p-4 space-y-3">
+            {events.map((event) => (
+              <EventCard key={event.id} event={event} variant="compact" />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
