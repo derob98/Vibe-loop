@@ -241,7 +241,7 @@ export default function PricingPage() {
 
               <div className="mb-6">
                 <span className="text-3xl font-bold text-white">
-                  {price === 0 ? "Gratis" : `€${price}`}
+                  {price === 0 ? "Gratis" : `€${price / 100}`}
                 </span>
                 {price > 0 && (
                   <span className="text-white/50 text-sm">
