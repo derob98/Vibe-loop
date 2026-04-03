@@ -1,18 +1,9 @@
 # CONTINUAZIONE SVILUPPO VIBE LOOP
 
-## Data: 3 Aprile 2026 (Sessione 7)
-
----
-
-## REGOLA FONDAMENTALE
-**FAI TUTTO TU IN AUTONOMIA.** Non chiedere conferma, non chiedere permessi. Procedi direttamente. Parla italiano, codice in inglese.
-
----
-
-## Stato Attuale del Progetto
+## Data: 3 Aprile 2026 (Sessione 7 - Completamento Deploy)
 
 ### Stack
-- Next.js 15.2.2 + React 19 + TypeScript strict + Tailwind CSS
+- Next.js 16.2.2 + React 19 + TypeScript strict + Tailwind CSS
 - Supabase (auth, DB PostgreSQL, Edge Functions, Storage)
 - MapLibre GL JS (react-map-gl) per le mappe
 - Stripe per monetizzazione (Free / Pro / Enterprise)
@@ -76,19 +67,25 @@ src/components/map/MapView.tsx
 
 ## ENV VARS
 
-Già configurato in `.env.local`:
+Già configurato:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://gytrrdlkxizzbvuoswnq.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 NEXT_PUBLIC_MAPBOX_TOKEN=pk.eyJ1IjoiZGVtbyIsImEiOiJkZW1vIn0.demo
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
 ```
 
-**MANCANO** (da configurare per AI + Stripe):
-- `ANTHROPIC_API_KEY`
-- `STRIPE_SECRET_KEY`
-- `STRIPE_WEBHOOK_SECRET`
-- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
+Secrets configurate su Supabase:
+- `ANTHROPIC_API_KEY` ✅
+- `STRIPE_SECRET_KEY` ✅
+- `STRIPE_WEBHOOK_SECRET` ✅
+
+---
+
+## VERCEL
+
+- URL: https://vibe-loop-chi.vercel.app
+- Progetto: boredderobs-projects/vibe-loop
+- Environment vars configurate: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, NEXT_PUBLIC_MAPBOX_TOKEN
 
 ---
 
@@ -128,8 +125,6 @@ pnpm typecheck    # Type check
 ---
 
 ## PROSSIMI PASSI
-1. Testare l'app (auth → feed → mappa → create → RSVP)
-2. Abilitare OAuth su Supabase Dashboard
-3. Configurare ANTHROPIC_API_KEY per AI recommendations
-4. Configurare Stripe keys per pagamenti
-5. Deploy su Vercel
+1. Testare l'app in produzione → https://vibe-loop-chi.vercel.app
+2. Finire eventuali bug trovati
+3. Aggiungere dominio custom (opzionale)
