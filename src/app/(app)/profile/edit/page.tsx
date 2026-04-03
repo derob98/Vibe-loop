@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Camera, Loader2 } from "lucide-react";
+import { ArrowLeft, Camera, Loader2, X } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
@@ -72,11 +72,10 @@ export default function EditProfilePage() {
     }
 
     setUploadingAvatar(true);
-    const ext = file.name.split(".").pop();
-    const path = `avatars/${userId}.${ext}`;
+    const path = `${userId}/avatar.jpg`;
 
     const { error } = await supabase.storage
-      .from("event-covers")
+      .from("avatars")
       .upload(path, file, { upsert: true });
 
     if (error) {
@@ -85,10 +84,20 @@ export default function EditProfilePage() {
       return;
     }
 
-    const { data } = supabase.storage.from("event-covers").getPublicUrl(path);
+    const { data } = supabase.storage.from("avatars").getPublicUrl(path);
     setAvatarUrl(data.publicUrl);
     setUploadingAvatar(false);
     toast.success("Avatar aggiornato");
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!userId || !avatarUrl) return;
+    setUploadingAvatar(true);
+    const path = `${userId}/avatar.jpg`;
+    await supabase.storage.from("avatars").remove([path]);
+    setAvatarUrl(null);
+    setUploadingAvatar(false);
+    toast.success("Avatar rimosso");
   };
 
   const handleSave = async () => {
@@ -159,8 +168,17 @@ export default function EditProfilePage() {
 
       {/* Avatar */}
       <div className="flex flex-col items-center mb-8">
-        <div className="relative">
+        <div className="relative group">
           <Avatar src={avatarUrl} name={displayName} size="xl" />
+          {avatarUrl && (
+            <button
+              onClick={handleRemoveAvatar}
+              disabled={uploadingAvatar}
+              className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 rounded-full flex items-center justify-center shadow-lg hover:bg-red-500 transition-colors disabled:opacity-50"
+            >
+              <X size={10} className="text-white" />
+            </button>
+          )}
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploadingAvatar}
@@ -184,7 +202,7 @@ export default function EditProfilePage() {
           onClick={() => fileInputRef.current?.click()}
           className="mt-2 text-xs text-violet-400 hover:text-violet-300 transition-colors"
         >
-          Cambia foto
+          {avatarUrl ? "Cambia foto" : "Carica foto"}
         </button>
       </div>
 

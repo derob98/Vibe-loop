@@ -9,6 +9,7 @@ interface RecommendationEvent {
   description: string | null;
   category: string | null;
   city: string | null;
+  slug: string;
   starts_at: string;
   ends_at: string | null;
   cover_image_url: string | null;
@@ -57,7 +58,7 @@ export function useRecommendations() {
     const { data, error } = await supabase
       .from("recommendations")
       .select(
-        "event_id, score, reason, created_at, events!inner(id, title, description, category, city, starts_at, ends_at, cover_image_url, latitude, longitude)"
+        "event_id, score, reason, created_at, events!inner(id, title, slug, description, category, city, starts_at, ends_at, cover_image_url, latitude, longitude)"
       )
       .eq("user_id", user.id)
       .order("score", { ascending: false })

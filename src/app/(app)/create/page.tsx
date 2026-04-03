@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -421,10 +422,11 @@ export default function CreatePage() {
               </label>
               <label className="flex flex-col items-center justify-center h-48 rounded-xl glass border-2 border-dashed border-white/20 cursor-pointer hover:border-violet-500/50 transition-colors">
                 {imagePreview ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <Image
                     src={imagePreview}
                     alt="preview"
+                    width={400}
+                    height={200}
                     className="w-full h-full object-cover rounded-xl"
                   />
                 ) : (

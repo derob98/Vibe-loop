@@ -144,7 +144,7 @@ export function EventCard({
     <Link
       href={`/event/${event.slug}`}
       className={clsx(
-        "group block glass rounded-2xl overflow-hidden hover:bg-white/8 transition-all duration-300 hover:-translate-y-0.5",
+        "group block glass rounded-2xl overflow-hidden card-hover",
         className
       )}
     >

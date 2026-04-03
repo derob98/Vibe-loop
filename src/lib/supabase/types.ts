@@ -488,6 +488,137 @@ export interface Database {
         };
         Relationships: [];
       };
+      subscription_plans: {
+        Row: {
+          id: string;
+          name: string;
+          price_monthly: number;
+          price_yearly: number;
+          features: Json;
+          stripe_price_id_monthly: string | null;
+          stripe_price_id_yearly: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name?: string;
+          price_monthly?: number;
+          price_yearly?: number;
+          features?: Json;
+          stripe_price_id_monthly?: string | null;
+          stripe_price_id_yearly?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          price_monthly?: number;
+          price_yearly?: number;
+          features?: Json;
+          stripe_price_id_monthly?: string | null;
+          stripe_price_id_yearly?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      subscriptions: {
+        Row: {
+          id: string;
+          user_id: string;
+          plan_id: string;
+          stripe_customer_id: string | null;
+          stripe_subscription_id: string | null;
+          status: string;
+          current_period_end: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          plan_id?: string;
+          stripe_customer_id?: string | null;
+          stripe_subscription_id?: string | null;
+          status?: string;
+          current_period_end?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          plan_id?: string;
+          stripe_customer_id?: string | null;
+          stripe_subscription_id?: string | null;
+          status?: string;
+          current_period_end?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      event_analytics: {
+        Row: {
+          id: string;
+          event_id: string;
+          user_id: string | null;
+          action: string;
+          metadata: Json | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          event_id: string;
+          user_id?: string | null;
+          action: string;
+          metadata?: Json | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          event_id?: string;
+          user_id?: string | null;
+          action?: string;
+          metadata?: Json | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_analytics_event_id_fkey";
+            columns: ["event_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      recommendations: {
+        Row: {
+          id: string;
+          user_id: string;
+          event_id: string;
+          score: number;
+          reason: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          event_id?: string;
+          score?: number;
+          reason?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          event_id?: string;
+          score?: number;
+          reason?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -516,3 +647,7 @@ export type Friendship = Database["public"]["Tables"]["friendships"]["Row"];
 export type DirectMessage = Database["public"]["Tables"]["direct_messages"]["Row"];
 export type Notification = Database["public"]["Tables"]["notifications"]["Row"];
 export type EventPost = Database["public"]["Tables"]["event_posts"]["Row"];
+export type SubscriptionPlan = Database["public"]["Tables"]["subscription_plans"]["Row"];
+export type Subscription = Database["public"]["Tables"]["subscriptions"]["Row"];
+export type Recommendation = Database["public"]["Tables"]["recommendations"]["Row"];
+export type EventAnalytics = Database["public"]["Tables"]["event_analytics"]["Row"];

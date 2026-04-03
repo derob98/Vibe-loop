@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
 import { Search, SlidersHorizontal, TrendingUp, Clock, MapPin, Sparkles } from "lucide-react";
 import { EventCard } from "@/components/ui/EventCard";
@@ -298,9 +299,11 @@ export default function FeedPage() {
               >
                 <div className="relative rounded-xl overflow-hidden aspect-video mb-2">
                   {rec.event.cover_image_url ? (
-                    <img
+                    <Image
                       src={rec.event.cover_image_url}
                       alt={rec.event.title}
+                      width={192}
+                      height={108}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                   ) : (

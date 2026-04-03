@@ -21,6 +21,8 @@ import {
 import { CategoryBadge } from "@/components/ui/CategoryBadge";
 import { Button } from "@/components/ui/Button";
 import { EventPhotoSection } from "@/components/ui/EventPhotoSection";
+import { EventAnalyticsDashboard } from "@/components/ui/EventAnalyticsDashboard";
+import { useTrackEvent } from "@/hooks/useEventAnalytics";
 import { createClient } from "@/lib/supabase/client";
 import type { Event } from "@/lib/supabase/types";
 import toast from "react-hot-toast";
@@ -41,6 +43,8 @@ export default function EventDetailPage({
   const [isSaved, setIsSaved] = useState(false);
   const [rsvpCount, setRsvpCount] = useState(0);
   const [rsvpLoading, setRsvpLoading] = useState(false);
+  const [isCreator, setIsCreator] = useState(false);
+  const { track } = useTrackEvent();
 
   useEffect(() => {
     async function load() {
@@ -63,6 +67,10 @@ export default function EventDetailPage({
       } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
+        setIsCreator(ev.creator_id === user.id);
+
+        // Track view
+        track(ev.id, "view");
 
         // RSVP status
         const { data: rsvp } = await supabase
@@ -111,6 +119,7 @@ export default function EventDetailPage({
         .eq("event_id", event.id);
       setRsvpStatus(null);
       setRsvpCount((c) => Math.max(0, c - 1));
+      track(event.id, "unrsvp");
       toast("Rimosso dalla lista partecipanti");
     } else {
       // Aggiungi RSVP
@@ -121,6 +130,7 @@ export default function EventDetailPage({
       });
       setRsvpStatus("going");
       setRsvpCount((c) => c + 1);
+      track(event.id, "rsvp");
       toast.success("Sei iscritto! 🎉");
     }
     setRsvpLoading(false);
@@ -138,6 +148,7 @@ export default function EventDetailPage({
         .eq("user_id", userId)
         .eq("event_id", event.id);
       setIsSaved(false);
+      track(event.id, "unsave");
       toast("Rimosso dai salvati");
     } else {
       await supabase.from("event_saves").upsert({
@@ -145,6 +156,7 @@ export default function EventDetailPage({
         event_id: event.id,
       });
       setIsSaved(true);
+      track(event.id, "save");
       toast.success("Salvato! 🔖");
     }
   };
@@ -200,6 +212,7 @@ export default function EventDetailPage({
           <button
             onClick={() => {
               navigator.clipboard.writeText(window.location.href);
+              if (event) track(event.id, "share");
               toast.success("Link copiato!");
             }}
             className="p-2 glass rounded-xl text-white"
@@ -336,6 +349,9 @@ export default function EventDetailPage({
 
         {/* Sezione foto UGC */}
         <EventPhotoSection eventId={event.id} userId={userId} />
+
+        {/* Analytics dashboard — solo per il creator */}
+        {isCreator && <EventAnalyticsDashboard eventId={event.id} />}
       </div>
     </div>
   );

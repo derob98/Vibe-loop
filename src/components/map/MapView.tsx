@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useMemo, useCallback, useRef } from "react";
 import Map, {
   Marker,
@@ -52,8 +53,9 @@ export default function MapPage() {
   const mapRef = useRef<MapRef>(null);
   const [viewState, setViewState] = useState(INITIAL_VIEW);
   const [cityLabel, setCityLabel] = useState("Roma, Italia");
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [bbox, setBbox] = useState<[number, number, number, number]>([
-    8.7, 45.2, 9.6, 45.7,
+    12.3, 41.7, 12.8, 42.0,
   ]);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [selectedPin, setSelectedPin] = useState<EventPhotoPin | null>(null);
@@ -143,36 +145,29 @@ export default function MapPage() {
     [supercluster, bbox, viewState.zoom]
   );
 
-  const CITY_CENTERS: Record<string, [number, number, number]> = {
-    "Roma": [12.49, 41.9, 12.5],
-    "Milano": [9.19, 45.46, 9.3],
-    "Napoli": [14.25, 40.85, 14.35],
-    "Torino": [7.69, 45.07, 7.75],
-    "Firenze": [11.25, 43.77, 11.3],
-    "Bologna": [11.34, 44.49, 11.4],
-  };
-
-  function detectCity(lat: number, lng: number): string {
-    for (const [label, [clng, clat, radius]] of Object.entries(CITY_CENTERS)) {
+  const detectCity = useCallback((lat: number, lng: number): string => {
+    const cityCenters: Record<string, [number, number, number]> = {
+      "Milano": [9.18, 45.46, 0.12],
+      "Roma": [12.49, 41.89, 0.15],
+      "Napoli": [14.25, 40.85, 0.1],
+      "Torino": [7.69, 45.07, 0.08],
+      "Firenze": [11.25, 43.77, 0.05],
+      "Bologna": [11.34, 44.49, 0.06],
+    };
+    for (const [label, [clng, clat, radius]] of Object.entries(cityCenters)) {
       const dist = Math.sqrt(Math.pow(lng - clng, 2) + Math.pow(lat - clat, 2));
       if (dist < radius) return label;
     }
     return "Italia";
-  }
-
-  const handleMapMove = useCallback(() => {
-    if (!mapRef.current) return;
-    const b = mapRef.current.getMap().getBounds();
-    setBbox([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
   }, []);
 
-  const handleMapMoveEnd = useCallback(() => {
+  const handleMapMove = useCallback(() => {
     if (!mapRef.current) return;
     if (searchQuery) return;
     const center = mapRef.current.getMap().getCenter();
     const detected = detectCity(center.lat, center.lng);
     setCityLabel(detected);
-  }, [searchQuery]);
+  }, [searchQuery, detectCity]);
 
   const categoryKeys = Object.keys(CATEGORY_CONFIG).slice(0, 6);
 
@@ -184,7 +179,6 @@ export default function MapPage() {
         onMove={(e) => setViewState(e.viewState)}
         onMoveEnd={() => {
           handleMapMove();
-          handleMapMoveEnd();
         }}
         mapStyle={MAP_STYLE}
         style={{ width: "100%", height: "100%" }}
@@ -279,9 +273,11 @@ export default function MapPage() {
           >
             <div className="relative cursor-pointer hover:scale-110 transition-transform">
               <div className="w-10 h-10 rounded-full border-2 border-white shadow-lg overflow-hidden">
-                <img
+                <Image
                   src={pin.post.image_url}
                   alt="foto evento"
+                  width={40}
+                  height={40}
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -307,9 +303,11 @@ export default function MapPage() {
               className="w-48 cursor-pointer"
               onClick={() => (window.location.href = `/event/${selectedPin.eventSlug}`)}
             >
-              <img
+              <Image
                 src={selectedPin.post.image_url}
                 alt="foto evento"
+                width={192}
+                height={192}
                 className="w-full aspect-square object-cover rounded-lg mb-1.5"
               />
               {selectedPin.post.caption && (
